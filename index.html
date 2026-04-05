@@ -634,7 +634,7 @@ function renderStats() {
   document.getElementById('stats-bar').innerHTML =
     (urgent?`<div class="stat-chip urgent">🔥 ${urgent} urgente${urgent>1?'s':''}</div>`:'')+
     (soon?`<div class="stat-chip soon">⚡ ${soon} pronto</div>`:'')+
-    (ok?`<div class="stat-chip ok">✅ ${ok} tranqui</div>`:'')+
+    (ok?`<div class="stat-chip ok">📅 ${ok} con tiempo</div>`:'')+
     `<div class="stat-chip done">📚 ${done} rendido${done!==1?'s':''}</div>`;
 }
 
