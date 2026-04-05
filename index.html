@@ -38,7 +38,8 @@ body{
   min-height:100dvh;overflow-x:hidden;
   -webkit-font-smoothing:antialiased;
   padding-top:var(--safe-top);
-  padding-bottom:calc(var(--nav-h) + var(--safe-bottom) + 16px);
+  /* Match the nav bar height + safe area + breathing room — env() used directly */
+  padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
 }
 
 /* ── STICKY HEADER (title + stats + filters all sticky together) ── */
@@ -225,11 +226,10 @@ body{
   background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;
 }
 
-/* Two-column row — stays 2 columns; on very narrow phones goes single column */
+/* Two-column row for Materia + Tipo (short labels, fits OK) */
 .form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
-@media(max-width:340px){
-  .form-row{grid-template-columns:1fr}
-}
+/* Single-column row for Fecha + Prioridad: stacked to avoid overlap on iPhone */
+.form-row-single{display:grid;grid-template-columns:1fr;gap:0}
 
 .btn-primary{
   width:100%;padding:15px;border:none;border-radius:var(--radius-xs);
@@ -243,14 +243,23 @@ body{
 /* ── BOTTOM NAV ── */
 .bottom-nav{
   position:fixed;bottom:0;left:0;right:0;
-  height:calc(var(--nav-h) + var(--safe-bottom));
-  padding-bottom:var(--safe-bottom);
-  background:rgba(18,19,26,0.94);
+  /* Use env() directly — CSS variable indirection can fail on iOS WebKit */
+  padding-bottom:env(safe-area-inset-bottom, 0px);
+  background:rgba(18,19,26,0.97);
   backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
   border-top:1px solid var(--border);display:flex;z-index:300;
 }
+/* Fill the safe-area zone below with the same background so no gap shows */
+.bottom-nav::after{
+  content:'';
+  position:fixed;bottom:0;left:0;right:0;
+  height:env(safe-area-inset-bottom, 0px);
+  background:rgba(18,19,26,0.97);
+  z-index:299;
+}
 .nav-item{
-  flex:1;display:flex;flex-direction:column;align-items:center;
+  flex:1;height:var(--nav-h);
+  display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:3px;border:none;background:none;
   color:var(--text3);font-size:10px;font-weight:600;cursor:pointer;
   transition:color .2s;padding:8px 0;
@@ -376,7 +385,7 @@ body{
         </select>
       </div>
     </div>
-    <div class="form-row">
+    <div class="form-row-single">
       <div class="form-group">
         <label class="form-label">Fecha</label>
         <input class="form-input" id="f-fecha" type="date">
@@ -425,7 +434,7 @@ body{
         </select>
       </div>
     </div>
-    <div class="form-row">
+    <div class="form-row-single">
       <div class="form-group">
         <label class="form-label">Fecha</label>
         <input class="form-input" id="e-fecha" type="date">
