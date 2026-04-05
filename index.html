@@ -1,0 +1,853 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0b0f">
+<title>UniTrack — Organizador Académico</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0b0f;--surface:#12131a;--surface2:#1a1b24;--surface3:#22232e;
+  --border:#2a2b38;--border-light:#35364a;
+  --text:#e8e9f0;--text2:#a0a1b4;--text3:#6b6c80;
+  --accent:#6c5ce7;--accent-soft:rgba(108,92,231,0.15);
+  --green:#00b894;--green-soft:rgba(0,184,148,0.12);
+  --red:#e17055;--red-soft:rgba(225,112,85,0.12);
+  --amber:#fdcb6e;--amber-soft:rgba(253,203,110,0.12);
+  --blue:#74b9ff;--blue-soft:rgba(116,185,255,0.12);
+  --pink:#fd79a8;--pink-soft:rgba(253,121,168,0.12);
+  --radius:14px;--radius-sm:10px;--radius-xs:8px;
+  --safe-top:env(safe-area-inset-top,20px);
+  --safe-bottom:env(safe-area-inset-bottom,0px);
+  --nav-h:64px;
+  /* sticky header total height for scroll-padding */
+  --header-total:108px;
+}
+html{
+  background:var(--bg);
+  -webkit-tap-highlight-color:transparent;
+  scroll-padding-top:var(--header-total);
+}
+body{
+  font-family:'DM Sans',system-ui,sans-serif;
+  background:var(--bg);color:var(--text);
+  min-height:100dvh;overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+  padding-top:var(--safe-top);
+  /* Match the nav bar height + safe area + breathing room — env() used directly */
+  padding-bottom:calc(var(--nav-h) + env(safe-area-inset-bottom, 0px) + 16px);
+}
+
+/* ── STICKY HEADER (title + stats + filters all sticky together) ── */
+.app-header{
+  position:sticky;top:0;z-index:100;
+  background:rgba(10,11,15,0.92);
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border-bottom:1px solid var(--border);
+}
+.header-inner{
+  padding:14px 20px 10px;
+  display:flex;align-items:center;justify-content:space-between;
+}
+.header-title{font-size:22px;font-weight:700;letter-spacing:-0.3px}
+.header-title span{color:var(--accent)}
+.header-sub{font-size:11px;color:var(--text3);margin-top:2px;font-family:'JetBrains Mono',monospace}
+
+/* Stats bar inside header */
+.stats-bar{
+  display:flex;gap:8px;padding:0 16px 10px;
+  overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;
+}
+.stats-bar::-webkit-scrollbar{display:none}
+.stat-chip{
+  flex:0 0 auto;padding:6px 12px;border-radius:20px;font-size:12px;font-weight:600;
+  display:flex;align-items:center;gap:5px;white-space:nowrap;
+}
+.stat-chip.urgent{background:var(--red-soft);color:var(--red)}
+.stat-chip.soon{background:var(--amber-soft);color:var(--amber)}
+.stat-chip.ok{background:var(--green-soft);color:var(--green)}
+.stat-chip.done{background:var(--surface2);color:var(--text3)}
+
+/* Filter pills inside header */
+.filter-row{
+  display:flex;gap:6px;padding:0 16px 10px;
+  overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;
+}
+.filter-row::-webkit-scrollbar{display:none}
+.filter-pill{
+  flex:0 0 auto;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;
+  border:1px solid var(--border);background:transparent;color:var(--text3);
+  cursor:pointer;transition:all .2s;white-space:nowrap;
+  /* min touch target height */
+  min-height:34px;display:flex;align-items:center;
+}
+.filter-pill.active{border-color:var(--accent);background:var(--accent-soft);color:var(--accent)}
+
+/* ── CONTENT PAGES ── */
+.page{display:none;padding:12px 14px 8px;animation:fadeUp .3s ease}
+.page.active{display:block}
+@keyframes fadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+/* ── EVENT CARDS ── */
+.event-card{
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);
+  padding:14px 14px 12px;margin-bottom:10px;position:relative;overflow:hidden;
+  transition:transform .15s,box-shadow .15s;
+}
+.event-card:active{transform:scale(0.985);box-shadow:0 2px 12px rgba(0,0,0,0.3)}
+/* left color accent bar */
+.event-card .color-bar{
+  position:absolute;left:0;top:0;bottom:0;width:4px;
+  border-radius:4px 0 0 4px;
+}
+
+/* card header: title left, days-badge right — prevent overlap */
+.event-card .card-header{
+  display:flex;justify-content:space-between;align-items:flex-start;
+  gap:10px;padding-left:12px;
+}
+.event-card .card-title{
+  font-size:15px;font-weight:600;line-height:1.35;
+  /* prevent title from pushing badge off screen */
+  min-width:0;flex:1;word-break:break-word;
+}
+.card-days{
+  font-size:11px;font-weight:700;padding:4px 8px;border-radius:6px;
+  white-space:nowrap;flex-shrink:0;align-self:flex-start;
+}
+.card-days.urgent{background:var(--red-soft);color:var(--red)}
+.card-days.soon{background:var(--amber-soft);color:var(--amber)}
+.card-days.ok{background:var(--green-soft);color:var(--green)}
+.card-days.past{background:var(--surface2);color:var(--text3)}
+
+/* card meta row — wraps cleanly */
+.event-card .card-meta{
+  display:flex;gap:6px;align-items:center;
+  margin-top:8px;padding-left:12px;flex-wrap:wrap;
+}
+.card-badge{
+  font-size:11px;font-weight:600;padding:3px 8px;border-radius:6px;
+  white-space:nowrap;
+}
+.card-date{font-size:12px;color:var(--text2);font-family:'JetBrains Mono',monospace}
+.card-notes{
+  font-size:12px;color:var(--text3);margin-top:8px;padding-left:12px;
+  line-height:1.5;word-break:break-word;
+}
+
+/* card action buttons */
+.card-actions{
+  display:flex;gap:8px;margin-top:12px;padding-left:12px;
+}
+.card-btn{
+  font-size:12px;font-weight:600;padding:8px 14px;border-radius:var(--radius-xs);
+  border:none;cursor:pointer;transition:all .15s;
+  min-height:36px;display:flex;align-items:center;gap:4px;
+}
+.card-btn.delete{background:var(--red-soft);color:var(--red)}
+.card-btn.edit{background:var(--blue-soft);color:var(--blue)}
+.card-btn:active{opacity:0.75;transform:scale(0.96)}
+
+/* ── STATUS SELECT ── */
+.status-select{
+  font-size:11px;font-weight:600;padding:6px 8px;border-radius:8px;
+  border:1px solid var(--border);background:var(--surface3);color:var(--text2);
+  cursor:pointer;appearance:none;-webkit-appearance:none;
+  min-height:36px;
+}
+
+/* ── CALENDAR ── */
+.cal-nav{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:10px 4px 12px;
+}
+.cal-nav h3{font-size:16px;font-weight:600}
+.cal-nav button{
+  width:40px;height:40px;border-radius:50%;border:1px solid var(--border);
+  background:var(--surface);color:var(--text);font-size:18px;cursor:pointer;
+  display:flex;align-items:center;justify-content:center;
+}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.cal-day-label{
+  font-size:10px;color:var(--text3);text-align:center;
+  padding:6px 0;font-weight:600;
+}
+.cal-cell{
+  aspect-ratio:1;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;border-radius:var(--radius-xs);font-size:13px;
+  color:var(--text3);position:relative;gap:2px;cursor:pointer;
+  transition:background .15s;
+}
+.cal-cell.has-events{color:var(--text);font-weight:600}
+.cal-cell.today{background:var(--accent-soft);color:var(--accent);font-weight:700}
+.cal-cell:active{background:var(--surface3)}
+.cal-dots{display:flex;gap:2px;position:absolute;bottom:4px}
+.cal-dot{width:4px;height:4px;border-radius:50%}
+
+/* Day popup: sits above bottom nav */
+.cal-cell-popup{
+  position:fixed;left:50%;transform:translateX(-50%);
+  bottom:calc(var(--nav-h) + var(--safe-bottom) + 20px);
+  width:calc(100% - 28px);max-width:420px;
+  background:var(--surface2);border:1px solid var(--border-light);
+  border-radius:var(--radius);padding:16px;
+  z-index:350;animation:slideUp .25s ease;
+  box-shadow:0 -8px 40px rgba(0,0,0,0.6);
+}
+@keyframes slideUp{
+  from{opacity:0;transform:translateX(-50%) translateY(16px)}
+  to{opacity:1;transform:translateX(-50%) translateY(0)}
+}
+.popup-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.45);z-index:349}
+
+/* ── ADD / EDIT FORM ── */
+.form-section{padding:0 2px}
+.form-group{margin-bottom:14px}
+.form-label{font-size:12px;font-weight:600;color:var(--text2);margin-bottom:6px;display:block}
+.form-input,.form-select,.form-textarea{
+  width:100%;padding:13px 14px;border-radius:var(--radius-xs);
+  border:1px solid var(--border);background:var(--surface2);
+  color:var(--text);font-size:15px;font-family:inherit;
+  transition:border-color .2s;outline:none;
+  /* prevent iOS zoom on focus */
+  font-size:max(16px, 14px);
+}
+.form-input:focus,.form-select:focus,.form-textarea:focus{
+  border-color:var(--accent);
+}
+.form-textarea{resize:vertical;min-height:70px}
+.form-select{
+  appearance:none;-webkit-appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='%236b6c80' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10z'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;
+}
+
+/* Two-column row for Materia + Tipo (short labels, fits OK) */
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* Single-column row for Fecha + Prioridad: stacked to avoid overlap on iPhone */
+.form-row-single{display:grid;grid-template-columns:1fr;gap:0}
+
+.btn-primary{
+  width:100%;padding:15px;border:none;border-radius:var(--radius-xs);
+  background:var(--accent);color:#fff;font-size:15px;font-weight:700;
+  cursor:pointer;transition:all .15s;font-family:inherit;margin-top:6px;
+  min-height:52px;
+}
+.btn-primary:active{transform:scale(0.97);opacity:0.9}
+.btn-danger{background:var(--red)}
+
+/* ── BOTTOM NAV ── */
+.bottom-nav{
+  position:fixed;bottom:0;left:0;right:0;
+  /* Use env() directly — CSS variable indirection can fail on iOS WebKit */
+  padding-bottom:env(safe-area-inset-bottom, 0px);
+  background:rgba(18,19,26,0.97);
+  backdrop-filter:blur(24px);-webkit-backdrop-filter:blur(24px);
+  border-top:1px solid var(--border);display:flex;z-index:300;
+}
+/* Fill the safe-area zone below with the same background so no gap shows */
+.bottom-nav::after{
+  content:'';
+  position:fixed;bottom:0;left:0;right:0;
+  height:env(safe-area-inset-bottom, 0px);
+  background:rgba(18,19,26,0.97);
+  z-index:299;
+}
+.nav-item{
+  flex:1;height:var(--nav-h);
+  display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:3px;border:none;background:none;
+  color:var(--text3);font-size:10px;font-weight:600;cursor:pointer;
+  transition:color .2s;padding:8px 0;
+}
+.nav-item.active{color:var(--accent)}
+.nav-item svg{width:22px;height:22px}
+
+/* Add button — floating above nav bar */
+.nav-item.add-btn{position:relative}
+.nav-item.add-btn .add-circle{
+  width:48px;height:48px;border-radius:50%;
+  background:var(--accent);
+  display:flex;align-items:center;justify-content:center;
+  box-shadow:0 4px 20px rgba(108,92,231,0.45);
+  /* raise it above the nav bar */
+  margin-top:-22px;
+  border:3px solid var(--bg);
+}
+.nav-item.add-btn svg{color:#fff;width:22px;height:22px}
+.nav-item.add-btn.active .add-circle{
+  background:var(--surface3);
+  box-shadow:none;
+}
+.nav-item.add-btn.active svg{color:var(--accent)}
+
+/* ── EMPTY STATE ── */
+.empty-state{text-align:center;padding:56px 20px;color:var(--text3)}
+.empty-state .icon{font-size:48px;margin-bottom:14px;opacity:0.45}
+.empty-state p{font-size:14px;line-height:1.6}
+
+/* ── EDIT MODAL (bottom sheet) ── */
+.modal-overlay{
+  position:fixed;inset:0;background:rgba(0,0,0,0.65);
+  z-index:400;display:none;align-items:flex-end;justify-content:center;
+}
+.modal-overlay.open{display:flex}
+.modal-sheet{
+  width:100%;max-width:500px;
+  max-height:90dvh;overflow-y:auto;
+  background:var(--surface);
+  border-radius:20px 20px 0 0;
+  padding:8px 18px calc(24px + var(--safe-bottom));
+  animation:sheetUp .3s ease;
+}
+@keyframes sheetUp{
+  from{transform:translateY(100%)}
+  to{transform:translateY(0)}
+}
+.modal-handle{
+  width:40px;height:4px;border-radius:2px;
+  background:var(--border-light);margin:12px auto 18px;
+}
+.modal-title{font-size:17px;font-weight:700;margin-bottom:16px}
+
+/* ── MATERIA COLORS ── */
+.mat-control{background:#e74c3c}
+.mat-decisiones{background:#3498db}
+.mat-admin{background:#e67e22}
+.mat-relaciones{background:#e84393}
+.mat-procesos{background:#2ecc71}
+.mat-logistica{background:#f1c40f}
+.mat-sistemas{background:#9b59b6}
+.mat-finanzas{background:#a0522d}
+.mat-moral{background:#95a5a6}
+
+/* ── TIPO BADGES ── */
+.badge-parcial1{background:rgba(52,152,219,0.15);color:#74b9ff}
+.badge-parcial2{background:rgba(155,89,182,0.15);color:#a29bfe}
+.badge-recuperatorio{background:rgba(230,126,34,0.15);color:#e67e22}
+.badge-tp{background:rgba(0,184,148,0.15);color:#00b894}
+.badge-cuestionario{background:rgba(253,203,110,0.15);color:#fdcb6e}
+.badge-otro{background:var(--surface3);color:var(--text3)}
+
+/* ── SECTION LABEL (optional grouping) ── */
+.section-label{
+  font-size:11px;font-weight:700;color:var(--text3);
+  letter-spacing:.06em;text-transform:uppercase;
+  margin:16px 0 8px 2px;
+}
+</style>
+</head>
+<body>
+
+<!-- ── STICKY HEADER: title + stats + filters ── -->
+<div class="app-header">
+  <div class="header-inner">
+    <div>
+      <div class="header-title">Uni<span>Track</span></div>
+      <div class="header-sub" id="header-date"></div>
+    </div>
+  </div>
+  <!-- stats chips -->
+  <div class="stats-bar" id="stats-bar"></div>
+  <!-- subject filter pills -->
+  <div class="filter-row" id="filter-row"></div>
+</div>
+
+<!-- ── PAGES ── -->
+<div class="page active" id="page-list"></div>
+
+<div class="page" id="page-cal"></div>
+
+<div class="page" id="page-add">
+  <div class="form-section">
+    <div class="form-group">
+      <label class="form-label">Nombre del evento</label>
+      <input class="form-input" id="f-name" placeholder="Ej: Parcial 1 Control Industrial">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Materia</label>
+        <select class="form-select" id="f-materia"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tipo</label>
+        <select class="form-select" id="f-tipo">
+          <option value="parcial1">📝 Parcial 1</option>
+          <option value="parcial2">📝 Parcial 2</option>
+          <option value="recuperatorio">📝 Recuperatorio</option>
+          <option value="tp">📦 TP / Entrega</option>
+          <option value="cuestionario">📋 Cuestionario</option>
+          <option value="otro">🔖 Otro</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row-single">
+      <div class="form-group">
+        <label class="form-label">Fecha</label>
+        <input class="form-input" id="f-fecha" type="date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Prioridad</label>
+        <select class="form-select" id="f-prioridad">
+          <option value="alta">🔴 Alta</option>
+          <option value="media" selected>🟡 Media</option>
+          <option value="baja">🟢 Baja</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notas (opcional)</label>
+      <textarea class="form-textarea" id="f-notas" placeholder="Temas, recordatorios..."></textarea>
+    </div>
+    <button class="btn-primary" onclick="saveEvent()">Guardar evento</button>
+  </div>
+</div>
+
+<!-- ── EDIT MODAL ── -->
+<div class="modal-overlay" id="edit-modal">
+  <div class="modal-sheet">
+    <div class="modal-handle"></div>
+    <div class="modal-title">Editar evento</div>
+    <input type="hidden" id="edit-id">
+    <div class="form-group">
+      <label class="form-label">Nombre</label>
+      <input class="form-input" id="e-name">
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Materia</label>
+        <select class="form-select" id="e-materia"></select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Tipo</label>
+        <select class="form-select" id="e-tipo">
+          <option value="parcial1">📝 Parcial 1</option>
+          <option value="parcial2">📝 Parcial 2</option>
+          <option value="recuperatorio">📝 Recuperatorio</option>
+          <option value="tp">📦 TP / Entrega</option>
+          <option value="cuestionario">📋 Cuestionario</option>
+          <option value="otro">🔖 Otro</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-row-single">
+      <div class="form-group">
+        <label class="form-label">Fecha</label>
+        <input class="form-input" id="e-fecha" type="date">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Prioridad</label>
+        <select class="form-select" id="e-prioridad">
+          <option value="alta">🔴 Alta</option>
+          <option value="media">🟡 Media</option>
+          <option value="baja">🟢 Baja</option>
+        </select>
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Estado</label>
+      <select class="form-select" id="e-status">
+        <option value="proximo">⏳ Próximo</option>
+        <option value="estudiando">📖 Estudiando</option>
+        <option value="rendido">✅ Rendido</option>
+        <option value="no_rendido">❌ No rendido</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Notas</label>
+      <textarea class="form-textarea" id="e-notas"></textarea>
+    </div>
+    <button class="btn-primary" onclick="updateEvent()">Actualizar</button>
+    <button class="btn-primary btn-danger" style="margin-top:10px" onclick="deleteFromModal()">Eliminar evento</button>
+  </div>
+</div>
+
+<!-- ── BOTTOM NAV ── -->
+<nav class="bottom-nav">
+  <button class="nav-item active" data-page="list" onclick="switchPage('list')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/>
+      <line x1="8" y1="18" x2="21" y2="18"/>
+      <circle cx="4" cy="6" r="1" fill="currentColor"/>
+      <circle cx="4" cy="12" r="1" fill="currentColor"/>
+      <circle cx="4" cy="18" r="1" fill="currentColor"/>
+    </svg>
+    Lista
+  </button>
+  <button class="nav-item" data-page="cal" onclick="switchPage('cal')">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+      <rect x="3" y="4" width="18" height="18" rx="2"/>
+      <line x1="16" y1="2" x2="16" y2="6"/>
+      <line x1="8" y1="2" x2="8" y2="6"/>
+      <line x1="3" y1="10" x2="21" y2="10"/>
+    </svg>
+    Calendario
+  </button>
+  <button class="nav-item add-btn" data-page="add" onclick="switchPage('add')">
+    <div class="add-circle">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+    </div>
+  </button>
+</nav>
+
+<!-- Calendar day popup -->
+<div id="day-popup-overlay" class="popup-overlay" style="display:none" onclick="closeDayPopup()"></div>
+<div id="day-popup" class="cal-cell-popup" style="display:none"></div>
+
+<script>
+// ── DATA ──
+const MATERIAS = [
+  {id:'control',name:'Control Industrial',color:'#e74c3c',css:'mat-control'},
+  {id:'decisiones',name:'Análisis de Decisiones',color:'#3498db',css:'mat-decisiones'},
+  {id:'admin',name:'Administración de Empresas',color:'#e67e22',css:'mat-admin'},
+  {id:'relaciones',name:'Relaciones del Trabajo',color:'#e84393',css:'mat-relaciones'},
+  {id:'procesos',name:'Procesos Industriales I',color:'#2ecc71',css:'mat-procesos'},
+  {id:'logistica',name:'Logística',color:'#f1c40f',css:'mat-logistica'},
+  {id:'sistemas',name:'Sistemas de Información',color:'#9b59b6',css:'mat-sistemas'},
+  {id:'finanzas',name:'Finanzas y Ev. de Proyectos',color:'#a0522d',css:'mat-finanzas'},
+  {id:'moral',name:'Moral y Compromiso Social',color:'#95a5a6',css:'mat-moral'},
+];
+const TIPOS = {
+  parcial1:{label:'Parcial 1',badge:'badge-parcial1'},
+  parcial2:{label:'Parcial 2',badge:'badge-parcial2'},
+  recuperatorio:{label:'Recuperatorio',badge:'badge-recuperatorio'},
+  tp:{label:'TP / Entrega',badge:'badge-tp'},
+  cuestionario:{label:'Cuestionario',badge:'badge-cuestionario'},
+  otro:{label:'Otro',badge:'badge-otro'},
+};
+
+let events = [];
+let calMonth, calYear;
+let activeFilter = 'all';
+
+// ── STORAGE ──
+const STORAGE_KEY = 'unitrack_events';
+
+async function loadEvents() {
+  try {
+    const r = await window.storage.get(STORAGE_KEY);
+    if (r && r.value) events = JSON.parse(r.value);
+  } catch {
+    try {
+      const ls = localStorage.getItem(STORAGE_KEY);
+      if (ls) events = JSON.parse(ls);
+    } catch {}
+  }
+}
+
+async function saveEvents() {
+  const json = JSON.stringify(events);
+  try { await window.storage.set(STORAGE_KEY, json); } catch {}
+  try { localStorage.setItem(STORAGE_KEY, json); } catch {}
+}
+
+// ── INIT ──
+function init() {
+  const now = new Date();
+  calMonth = now.getMonth();
+  calYear = now.getFullYear();
+  document.getElementById('header-date').textContent =
+    now.toLocaleDateString('es-AR',{weekday:'long',day:'numeric',month:'long'})
+      .replace(/^\w/,c=>c.toUpperCase());
+
+  ['f-materia','e-materia'].forEach(id => {
+    const sel = document.getElementById(id);
+    MATERIAS.forEach(m => {
+      const o = document.createElement('option');
+      o.value = m.id; o.textContent = m.name;
+      sel.appendChild(o);
+    });
+  });
+
+  document.getElementById('f-fecha').value = formatDateInput(now);
+  buildFilters();
+  render();
+}
+
+// ── HELPERS ──
+function formatDateInput(d) {
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function daysUntil(dateStr) {
+  const now = new Date(); now.setHours(0,0,0,0);
+  const d = new Date(dateStr+'T00:00:00');
+  return Math.round((d - now) / 86400000);
+}
+function formatDate(dateStr) {
+  const d = new Date(dateStr+'T00:00:00');
+  return d.toLocaleDateString('es-AR',{weekday:'short',day:'numeric',month:'short'})
+    .replace(/^\w/,c=>c.toUpperCase());
+}
+function getMat(id) { return MATERIAS.find(m=>m.id===id) || MATERIAS[0]; }
+function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+function daysLabel(n) {
+  if (n < 0) return {text:`Hace ${Math.abs(n)}d`,cls:'past'};
+  if (n === 0) return {text:'HOY',cls:'urgent'};
+  if (n === 1) return {text:'MAÑANA',cls:'urgent'};
+  if (n <= 7) return {text:`${n} días`,cls:'soon'};
+  return {text:`${n} días`,cls:'ok'};
+}
+
+// ── FILTERS ──
+function buildFilters() {
+  const row = document.getElementById('filter-row');
+  row.innerHTML = `<button class="filter-pill active" data-materia="all" onclick="setFilter('all')">Todos</button>`;
+  MATERIAS.forEach(m => {
+    row.innerHTML += `<button class="filter-pill" data-materia="${m.id}" onclick="setFilter('${m.id}')">${m.name.split(' ')[0]}</button>`;
+  });
+}
+function setFilter(f) {
+  activeFilter = f;
+  document.querySelectorAll('.filter-pill').forEach((p,i) => {
+    if (f === 'all') {
+      p.classList.toggle('active', i === 0);
+    } else {
+      p.classList.toggle('active', p.dataset.materia === f);
+    }
+  });
+  renderList();
+}
+
+// ── RENDER ──
+function render() {
+  renderStats();
+  renderList();
+  renderCal();
+}
+
+function renderStats() {
+  const upcoming = events.filter(e=>e.status!=='rendido'&&e.status!=='no_rendido');
+  let urgent=0, soon=0, ok=0, done=events.filter(e=>e.status==='rendido').length;
+  upcoming.forEach(e => {
+    const d = daysUntil(e.fecha);
+    if (d <= 3) urgent++;
+    else if (d <= 14) soon++;
+    else ok++;
+  });
+  document.getElementById('stats-bar').innerHTML =
+    (urgent?`<div class="stat-chip urgent">🔥 ${urgent} urgente${urgent>1?'s':''}</div>`:'')+
+    (soon?`<div class="stat-chip soon">⚡ ${soon} pronto</div>`:'')+
+    (ok?`<div class="stat-chip ok">📅 ${ok} con tiempo</div>`:'')+
+    `<div class="stat-chip done">📚 ${done} rendido${done!==1?'s':''}</div>`;
+}
+
+function renderList() {
+  const container = document.getElementById('page-list');
+  let filtered = [...events];
+  if (activeFilter !== 'all') filtered = filtered.filter(e=>e.materia===activeFilter);
+
+  filtered.sort((a,b) => {
+    const da = daysUntil(a.fecha), db = daysUntil(b.fecha);
+    const aIsDone = a.status==='rendido'||a.status==='no_rendido';
+    const bIsDone = b.status==='rendido'||b.status==='no_rendido';
+    if (aIsDone !== bIsDone) return aIsDone ? 1 : -1;
+    return da - db;
+  });
+
+  if (!filtered.length) {
+    container.innerHTML = `<div class="empty-state"><div class="icon">📅</div><p>No hay eventos cargados${activeFilter!=='all'?' para esta materia':''}.<br>Tocá <strong>+</strong> para agregar uno.</p></div>`;
+    return;
+  }
+
+  container.innerHTML = filtered.map(e => {
+    const mat = getMat(e.materia);
+    const tipo = TIPOS[e.tipo] || TIPOS.otro;
+    const dl = daysLabel(daysUntil(e.fecha));
+    const isDone = e.status==='rendido'||e.status==='no_rendido';
+    return `
+    <div class="event-card" style="${isDone?'opacity:0.45':''}">
+      <div class="color-bar" style="background:${mat.color}"></div>
+      <div class="card-header">
+        <div class="card-title">${e.nombre}</div>
+        <div class="card-days ${dl.cls}">${dl.text}</div>
+      </div>
+      <div class="card-meta">
+        <span class="card-badge ${tipo.badge}">${tipo.label}</span>
+        <span class="card-badge" style="background:${mat.color}22;color:${mat.color}">${mat.name.split(' ').slice(0,2).join(' ')}</span>
+        <span class="card-date">${formatDate(e.fecha)}</span>
+      </div>
+      ${e.notas?`<div class="card-notes">${e.notas}</div>`:''}
+      <div class="card-actions">
+        <button class="card-btn edit" onclick="openEdit('${e.id}')">✏️ Editar</button>
+        <button class="card-btn delete" onclick="deleteEvent('${e.id}')">🗑 Eliminar</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── CALENDAR ──
+function renderCal() {
+  const container = document.getElementById('page-cal');
+  const monthNames = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const dayNames = ['Lu','Ma','Mi','Ju','Vi','Sá','Do'];
+
+  const firstDay = new Date(calYear, calMonth, 1);
+  let startDow = firstDay.getDay() - 1; if (startDow < 0) startDow = 6;
+  const daysInMonth = new Date(calYear, calMonth + 1, 0).getDate();
+  const today = new Date(); today.setHours(0,0,0,0);
+
+  let html = `
+  <div class="cal-nav">
+    <button onclick="calPrev()">‹</button>
+    <h3>${monthNames[calMonth]} ${calYear}</h3>
+    <button onclick="calNext()">›</button>
+  </div>
+  <div class="cal-grid">
+    ${dayNames.map(d=>`<div class="cal-day-label">${d}</div>`).join('')}`;
+
+  for (let i = 0; i < startDow; i++) html += `<div class="cal-cell"></div>`;
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    const dayEvents = events.filter(e => e.fecha === dateStr);
+    const isToday = (today.getFullYear()===calYear && today.getMonth()===calMonth && today.getDate()===day);
+    const hasEvents = dayEvents.length > 0;
+
+    html += `<div class="cal-cell ${isToday?'today':''} ${hasEvents?'has-events':''}" onclick="showDayPopup('${dateStr}')">
+      ${day}
+      ${hasEvents?`<div class="cal-dots">${dayEvents.slice(0,3).map(e=>`<div class="cal-dot" style="background:${getMat(e.materia).color}"></div>`).join('')}</div>`:''}
+    </div>`;
+  }
+
+  html += `</div>`;
+  container.innerHTML = html;
+}
+
+function calPrev() { calMonth--; if(calMonth<0){calMonth=11;calYear--} renderCal(); }
+function calNext() { calMonth++; if(calMonth>11){calMonth=0;calYear++} renderCal(); }
+
+function showDayPopup(dateStr) {
+  const dayEvents = events.filter(e => e.fecha === dateStr);
+  if (!dayEvents.length) return;
+
+  const popup = document.getElementById('day-popup');
+  const overlay = document.getElementById('day-popup-overlay');
+
+  popup.innerHTML = `
+    <div style="font-weight:700;font-size:15px;margin-bottom:12px">${formatDate(dateStr)}</div>
+    ${dayEvents.map(e => {
+      const mat = getMat(e.materia);
+      const tipo = TIPOS[e.tipo]||TIPOS.otro;
+      return `<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">
+        <div style="width:4px;height:36px;border-radius:2px;background:${mat.color};flex-shrink:0"></div>
+        <div style="min-width:0;flex:1">
+          <div style="font-weight:600;font-size:14px;word-break:break-word">${e.nombre}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">${mat.name} · ${tipo.label}</div>
+        </div>
+        <button class="card-btn edit" style="flex-shrink:0" onclick="closeDayPopup();openEdit('${e.id}')">✏️</button>
+      </div>`;
+    }).join('')}
+  `;
+  popup.style.display = 'block';
+  overlay.style.display = 'block';
+}
+
+function closeDayPopup() {
+  document.getElementById('day-popup').style.display = 'none';
+  document.getElementById('day-popup-overlay').style.display = 'none';
+}
+
+// ── SAVE EVENT ──
+async function saveEvent() {
+  const nombre = document.getElementById('f-name').value.trim();
+  const materia = document.getElementById('f-materia').value;
+  const tipo = document.getElementById('f-tipo').value;
+  const fecha = document.getElementById('f-fecha').value;
+  const prioridad = document.getElementById('f-prioridad').value;
+  const notas = document.getElementById('f-notas').value.trim();
+
+  if (!nombre || !fecha) { alert('Completá nombre y fecha.'); return; }
+
+  events.push({id:genId(), nombre, materia, tipo, fecha, prioridad, notas, status:'proximo'});
+  await saveEvents();
+
+  document.getElementById('f-name').value = '';
+  document.getElementById('f-notas').value = '';
+  document.getElementById('f-fecha').value = formatDateInput(new Date());
+  document.getElementById('f-prioridad').value = 'media';
+
+  render();
+  switchPage('list');
+}
+
+// ── EDIT ──
+function openEdit(id) {
+  const e = events.find(x=>x.id===id);
+  if (!e) return;
+  document.getElementById('edit-id').value = id;
+  document.getElementById('e-name').value = e.nombre;
+  document.getElementById('e-materia').value = e.materia;
+  document.getElementById('e-tipo').value = e.tipo;
+  document.getElementById('e-fecha').value = e.fecha;
+  document.getElementById('e-prioridad').value = e.prioridad;
+  document.getElementById('e-status').value = e.status;
+  document.getElementById('e-notas').value = e.notas || '';
+  document.getElementById('edit-modal').classList.add('open');
+}
+
+function closeModal() {
+  document.getElementById('edit-modal').classList.remove('open');
+}
+
+document.getElementById('edit-modal').addEventListener('click', function(ev) {
+  if (ev.target === this) closeModal();
+});
+
+async function updateEvent() {
+  const id = document.getElementById('edit-id').value;
+  const idx = events.findIndex(x=>x.id===id);
+  if (idx < 0) return;
+  events[idx] = {
+    ...events[idx],
+    nombre: document.getElementById('e-name').value.trim(),
+    materia: document.getElementById('e-materia').value,
+    tipo: document.getElementById('e-tipo').value,
+    fecha: document.getElementById('e-fecha').value,
+    prioridad: document.getElementById('e-prioridad').value,
+    status: document.getElementById('e-status').value,
+    notas: document.getElementById('e-notas').value.trim(),
+  };
+  await saveEvents();
+  closeModal();
+  render();
+}
+
+async function deleteEvent(id) {
+  if (!confirm('¿Eliminar este evento?')) return;
+  events = events.filter(x=>x.id!==id);
+  await saveEvents();
+  render();
+}
+
+async function deleteFromModal() {
+  const id = document.getElementById('edit-id').value;
+  if (!confirm('¿Eliminar este evento?')) return;
+  events = events.filter(x=>x.id!==id);
+  await saveEvents();
+  closeModal();
+  render();
+}
+
+// ── NAVIGATION ──
+function switchPage(page) {
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.toggle('active',n.dataset.page===page));
+  if (page==='cal') renderCal();
+}
+
+// ── BOOT ──
+(async function() {
+  await loadEvents();
+  init();
+})();
+</script>
+</body>
+</html>
